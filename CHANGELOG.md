@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix workspace file links with root-level filenames and line/column/range suffixes across file types, rather than only Markdown files. Parse locations before URI detection, preserve native Windows/UNC and POSIX paths and Unicode names, and keep external URLs excluded. Preserve literal underscores and backslashes in prose file references so Markdown cannot split `__init__.py` or alter Windows paths. Keep Host existence validation and keyboard navigation, with parser, rendered-link and cross-platform path regression tests.
+
 ## 0.6.0
 
 > Upgrade notice: this release bundles Harness `0.1.5-alpha.1` and uses V3 session logs. Independently installed official DSH must also support V3 to share history. Original legacy logs are retained; back up the shared and private history homes before upgrading. Two backends may read saved history, but only one may own a session for writing at a time.

@@ -34,7 +34,8 @@ export type WorktreeAutoMergeMode = 'never' | 'onTurnEnd'
 export interface HarnessConfiguration {
   /** Official DSH home whose sessions/attachments are shared; runtime profiles stay private. */
   readonly historyHome?: string
-  readonly model: ModelId
+  /** The selected model id; custom providers may expose ids outside the official catalog. */
+  readonly model: string
   readonly reasoningEffort: ReasoningEffort
   readonly agentPreset: AgentPresetId
   readonly provider: string
@@ -69,7 +70,7 @@ export class ConfigurationService implements vscode.Disposable {
 
     return {
       historyHome: config.get<string>('historyHome', '').trim(),
-      model: modelId(config.get<string>('model')),
+      model: configuredModel(config.get<string>('model')),
       reasoningEffort: reasoningEffort(config.get<string>('reasoningEffort')),
       agentPreset: agentPresetId(config.get<string>('agentPreset')),
       provider: nonEmpty(config.get<string>('provider'), 'deepseek-official'),
@@ -207,6 +208,11 @@ const RUNTIME_SETTING_KEYS = [
 function nonEmpty(value: string | undefined, fallback: string): string {
   const normalized = value?.trim()
   return normalized === undefined || normalized === '' ? fallback : normalized
+}
+
+function configuredModel(value: string | undefined): string {
+  const normalized = value?.trim()
+  return normalized === undefined || normalized === '' ? MODEL_OPTIONS[0].id : normalized
 }
 
 function permissionMode(value: string | undefined): PermissionMode {

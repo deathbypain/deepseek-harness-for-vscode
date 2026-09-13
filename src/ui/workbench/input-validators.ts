@@ -45,7 +45,8 @@ export function settingsInput(value: Record<string, unknown>): ConnectionSetting
   const baseUrl = typeof value.baseUrl === 'string' ? value.baseUrl : ''
   const apiKey = typeof value.apiKey === 'string' ? value.apiKey : ''
   const models = modelsInput(value.models)
-  return { provider, name, baseUrl, apiKey, models }
+  const modelContextWindows = modelContextWindowsInput(value.modelContextWindows)
+  return { provider, name, baseUrl, apiKey, models, modelContextWindows }
 }
 
 /** Accepts an array of ids or a single comma/space-separated string. */
@@ -55,6 +56,17 @@ export function modelsInput(value: unknown): readonly string[] {
     return value.split(/[,，\s]+/u).map((item) => item.trim()).filter((item) => item !== '')
   }
   return []
+}
+
+/** A model id → context window (tokens) map; non-positive or non-numeric entries are dropped. */
+export function modelContextWindowsInput(value: unknown): Readonly<Record<string, number>> {
+  if (!isRecord(value)) return {}
+  const result: Record<string, number> = {}
+  for (const [id, raw] of Object.entries(value)) {
+    if (id === '' || typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) continue
+    result[id] = Math.round(raw)
+  }
+  return result
 }
 
 /** Stable, cross-platform ZIP name for a session log export. */

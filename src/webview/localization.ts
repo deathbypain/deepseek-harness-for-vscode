@@ -97,7 +97,7 @@ export const ENGLISH_WEBVIEW_MESSAGES = {
   apiKeyKeepPlaceholder: 'Configured — leave blank to keep it',
   providerModels: 'Model IDs',
   providerModelsPlaceholder: 'deepseek-v4-flash, deepseek-v4-pro',
-  providerModelsHint: 'Model ids your endpoint exposes, comma-separated. Test the connection to fill them in automatically.',
+  providerModelsHint: 'Model ids your endpoint exposes, comma-separated. Add :contextSize to set a model\'s context window (e.g. model-id:32k) — most local endpoints do not report this, so it defaults to 256K otherwise. Test the connection to fill ids in automatically.',
   openNativeSettings: 'Open full settings',
   apply: 'Apply',
   closeSettings: 'Close settings',

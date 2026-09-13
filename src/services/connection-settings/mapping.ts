@@ -66,7 +66,7 @@ export function normalizeInput(input: ConnectionSettingsInput): ConnectionSettin
   if (input.provider !== DEEPSEEK_OFFICIAL_PROVIDER && name === '') throw new Error('The provider name cannot be empty.')
   if (baseUrl === '') {
     if (input.provider === DEEPSEEK_OFFICIAL_PROVIDER) {
-      return { ...input, name, baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, apiKey }
+      return { ...input, name, baseUrl: DEEPSEEK_OFFICIAL_BASE_URL, apiKey, modelContextWindows: {} }
     }
     throw new Error('The provider base URL cannot be empty.')
   }
@@ -74,7 +74,10 @@ export function normalizeInput(input: ConnectionSettingsInput): ConnectionSettin
   const models = input.provider === DEEPSEEK_OFFICIAL_PROVIDER
     ? []
     : normalizeRelayModels(input.models)
-  return { ...input, name, baseUrl, apiKey, models }
+  const modelContextWindows = input.provider === DEEPSEEK_OFFICIAL_PROVIDER
+    ? {}
+    : normalizeModelContextWindows(input.modelContextWindows, models)
+  return { ...input, name, baseUrl, apiKey, models, modelContextWindows }
 }
 
 /**
@@ -87,6 +90,26 @@ export function normalizeRelayModels(models: readonly string[] | undefined): rea
     .map((model) => model.trim())
     .filter((model) => model !== '')
   return [...new Set(ids)]
+}
+
+/**
+ * Keeps only positive-integer overrides for ids the provider actually
+ * exposes; anything else (a stale override for a removed model, a
+ * non-numeric or non-positive value) is dropped rather than persisted.
+ */
+export function normalizeModelContextWindows(
+  contextWindows: Readonly<Record<string, number>> | undefined,
+  models: readonly string[],
+): Readonly<Record<string, number>> {
+  if (contextWindows === undefined) return {}
+  const known = new Set(models)
+  const normalized: Record<string, number> = {}
+  for (const [id, value] of Object.entries(contextWindows)) {
+    if (!known.has(id)) continue
+    if (!Number.isFinite(value) || value <= 0) continue
+    normalized[id] = Math.round(value)
+  }
+  return normalized
 }
 
 /** Reasoning effort wire map the extension writes for custom relay models. */
@@ -102,11 +125,21 @@ export function isLegacyRelayReasoningEfforts(efforts: object): boolean {
     && legacy.every(([key, value]) => (efforts as Record<string, unknown>)[key] === value)
 }
 
-/** Wire model entries carrying the extension's effort map, modalities and capacity. */
-export function relayModels(models: readonly string[]): { id: string; reasoningEfforts: object; input?: readonly string[]; contextWindow?: number; maxTokens?: number }[] {
+/**
+ * Wire model entries carrying the extension's effort map, modalities and
+ * capacity. A user-specified `contextWindows[id]` always wins over the
+ * bundled capacity table, since it reflects how the operator actually
+ * configured their (often local) endpoint.
+ */
+export function relayModels(
+  models: readonly string[],
+  contextWindows?: Readonly<Record<string, number>>,
+): { id: string; reasoningEfforts: object; input?: readonly string[]; contextWindow?: number; maxTokens?: number }[] {
   const ids = models.length > 0 ? models : ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp']
   return ids.map((id) => {
+    const override = contextWindows?.[id]
     const capacity = modelCapacity(id)
+    const contextWindow = override ?? capacity?.contextWindow
     return {
       id,
       reasoningEfforts: { ...RELAY_REASONING_EFFORTS },
@@ -114,22 +147,28 @@ export function relayModels(models: readonly string[]): { id: string; reasoningE
       // vision route must declare its modalities or image prompts are rejected
       // at admission even after the session switched to it.
       ...(supportsImageInput(id) ? { input: ['text', 'image'] } : {}),
-      ...(capacity === undefined ? {} : {
-        contextWindow: capacity.contextWindow,
-        ...(capacity.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
+      ...(contextWindow === undefined ? {} : {
+        contextWindow,
+        ...(capacity?.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
       }),
     }
   })
 }
 
-export function deepSeekRelayProfile(displayName: string, baseURL: string, apiKeyEnv: string, models?: readonly string[]): object {
+export function deepSeekRelayProfile(
+  displayName: string,
+  baseURL: string,
+  apiKeyEnv: string,
+  models?: readonly string[],
+  contextWindows?: Readonly<Record<string, number>>,
+): object {
   return {
     displayName,
     apiKeyEnv,
     api: 'openai-completions',
     baseURL,
     compat: relayCompat(),
-    models: relayModels(models ?? []),
+    models: relayModels(models ?? [], contextWindows),
   }
 }
 
@@ -155,6 +194,7 @@ export function providerView(
     name: entry.displayName,
     baseUrl,
     models: modelsField(profile),
+    modelContextWindows: modelContextWindowsField(profile),
     apiKeyConfigured: credential?.configured === true,
     credentialWritable: credential?.writable === true,
     removable: entry.settingsPath.length > 0 && valueAt(namespace?.user, entry.settingsPath) !== undefined,
@@ -190,3 +230,27 @@ function modelsField(value: unknown): readonly string[] {
       : typeof model === 'string' ? model : undefined))
     .filter((model): model is string => model !== undefined)
 }
+
+/**
+ * Reads back the context window every model entry actually carries (whether
+ * set by the user or backfilled from the bundled capacity table), so the
+ * settings form can show and let the user edit the value that is really in
+ * effect.
+ */
+function modelContextWindowsField(value: unknown): Readonly<Record<string, number>> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
+  const models = (value as Record<string, unknown>)['models']
+  if (!Array.isArray(models)) return {}
+  const result: Record<string, number> = {}
+  for (const model of models) {
+    if (typeof model !== 'object' || model === null || Array.isArray(model)) continue
+    const record = model as Record<string, unknown>
+    const id = record['id']
+    const contextWindow = record['contextWindow']
+    if (typeof id === 'string' && id !== '' && typeof contextWindow === 'number' && contextWindow > 0) {
+      result[id] = contextWindow
+    }
+  }
+  return result
+}
+

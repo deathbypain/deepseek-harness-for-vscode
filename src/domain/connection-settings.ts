@@ -5,6 +5,13 @@ export interface ConnectionProviderView {
   readonly baseUrl: string
   /** Model ids this provider's profile exposes; empty means the defaults. */
   readonly models: readonly string[]
+  /**
+   * Per-model context window overrides (tokens), keyed by model id. Populated
+   * either by the user (local endpoints rarely disclose this) or backfilled
+   * from the bundled capacity table. Absent ids fall back to the adapter's
+   * built-in 256K default.
+   */
+  readonly modelContextWindows: Readonly<Record<string, number>>
   readonly apiKeyConfigured: boolean
   readonly credentialWritable: boolean
   readonly removable: boolean
@@ -27,6 +34,14 @@ export interface ConnectionSettingsInput {
    * falls back to the extension's DeepSeek defaults.
    */
   readonly models: readonly string[]
+  /**
+   * User-specified context window (tokens), keyed by model id, for models
+   * this provider exposes. Most local OpenAI-compatible servers (llama.cpp,
+   * llama-swap, Ollama, …) do not disclose a model's real context size over
+   * `/v1/models`, so the user sets it manually; it takes priority over the
+   * bundled capacity table for that id. Omitted/absent means none set.
+   */
+  readonly modelContextWindows?: Readonly<Record<string, number>>
 }
 
 export type ConnectionTestStatus = 'success' | 'unreachable' | 'unsupported'
@@ -47,4 +62,5 @@ export interface ConnectionTestResult {
 }
 
 export const NEW_PROVIDER = '__new__'
+
 

@@ -41,11 +41,34 @@ describe('ConnectionSettingsService', () => {
       name: 'PackyCode',
       baseUrl: 'https://relay.example.com/v1',
       models: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+      modelContextWindows: { 'deepseek-v4-flash': 1_000_000, 'deepseek-v4-pro': 1_000_000 },
       apiKeyConfigured: true,
       credentialWritable: true,
       removable: true,
     })
     expect(JSON.stringify(service.state)).not.toContain('sk-secret')
+  })
+
+  it('creates a custom provider without requiring an API key', async () => {
+    const harness = fakeHarness()
+    const service = serviceFor()
+    await service.connect(harness.client as never)
+
+    const route = await service.apply({
+      provider: '__new__',
+      name: 'Local Llama',
+      baseUrl: 'http://127.0.0.1:8080/v1',
+      apiKey: '',
+      models: ['llama-3.1-8b'],
+    })
+
+    expect(route).toBe('local-llama')
+    expect(harness.document.piAi.value.providers['local-llama']).toMatchObject({
+      displayName: 'Local Llama',
+      baseURL: 'http://127.0.0.1:8080/v1',
+      apiKeyEnv: 'PROVIDER_LOCAL_LLAMA_API_KEY',
+    })
+    expect(harness.document.credentials.PROVIDER_LOCAL_LLAMA_API_KEY).toBeUndefined()
   })
 
   it('writes the endpoint-specific model ids a third-party provider exposes', async () => {
@@ -68,6 +91,51 @@ describe('ConnectionSettingsService', () => {
     ])
     expect(service.state.providers.find((provider) => provider.id === 'volcengine-ark')?.models)
       .toEqual(['deepseek-v3.1-250828', 'ep-20250417-xxxxx'])
+  })
+
+  it('writes a user-specified context window for a custom model, overriding the capacity table', async () => {
+    const harness = fakeHarness()
+    const service = serviceFor()
+    await service.connect(harness.client as never)
+
+    const route = await service.apply({
+      provider: '__new__',
+      name: 'Llama Swap',
+      baseUrl: 'http://127.0.0.1:8080/v1',
+      apiKey: '',
+      models: ['gemma-4-12b-heretic', 'qwen-3.8-27b'],
+      // qwen-3.8-27b has a capacity-table entry (262_144); the explicit
+      // override must still win because it reflects how the user actually
+      // configured their local endpoint.
+      modelContextWindows: { 'gemma-4-12b-heretic': 32_768, 'qwen-3.8-27b': 8_192 },
+    })
+
+    expect(route).toBe('llama-swap')
+    expect(harness.document.piAi.value.providers['llama-swap']!.models).toEqual([
+      { id: 'gemma-4-12b-heretic', contextWindow: 32_768, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'qwen-3.8-27b', contextWindow: 8_192, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+    ])
+    expect(service.state.providers.find((provider) => provider.id === 'llama-swap')?.modelContextWindows)
+      .toEqual({ 'gemma-4-12b-heretic': 32_768, 'qwen-3.8-27b': 8_192 })
+  })
+
+  it('drops context window overrides for ids the provider no longer exposes', async () => {
+    const harness = fakeHarness()
+    const service = serviceFor()
+    await service.connect(harness.client as never)
+
+    const route = await service.apply({
+      provider: '__new__',
+      name: 'Llama Swap',
+      baseUrl: 'http://127.0.0.1:8080/v1',
+      apiKey: '',
+      models: ['gemma-4-12b-heretic'],
+      modelContextWindows: { 'gemma-4-12b-heretic': 32_768, 'stale-removed-model': 16_384 },
+    })
+
+    expect(harness.document.piAi.value.providers['llama-swap']!.models).toEqual([
+      { id: 'gemma-4-12b-heretic', contextWindow: 32_768, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+    ])
   })
 
   it('falls back to the DeepSeek defaults when a custom provider omits models', async () => {

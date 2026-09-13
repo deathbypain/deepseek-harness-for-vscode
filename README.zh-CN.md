@@ -129,9 +129,11 @@
 | `deepseekHarness.permissionMode` | `workspace-write` | `read-only` / `workspace-write` / `danger-full-access` |
 | `deepseekHarness.autoAttachSelection` | `true` | 发送时自动附加当前编辑器选区 |
 
-提供商端点与只写凭据引用统一交给内置 Harness 设置/凭据服务管理。API Key 保存在扩展私有的 Harness Home 中，不会回传给 Webview，也不会写入项目 `.vscode/settings.json`。旧版 `deepseekHarness.apiKey`、`baseUrl` 和 `providers` 会在首次连接时迁移并清除。
+提供商端点与只写凭据引用统一交给内置 Harness 设置/凭据服务管理。API Key 保存在扩展私有的 Harness Home 中，不会回传给 Webview，也不会写入项目 `.vscode/settings.json`。本地 OpenAI 兼容端点可以不填写 API Key。旧版 `deepseekHarness.apiKey`、`baseUrl` 和 `providers` 会在首次连接时迁移并清除。
 
-可在“连接设置”面板中新增、编辑、测试或移除 DeepSeek 中转来源。自定义来源通过上游 `llm-pi-ai` 适配器实时注册，并在模型面板中提供相同的 Flash/Pro 选择。
+可在“连接设置”面板中新增、编辑、测试或移除 OpenAI 兼容来源。自定义来源通过上游 `llm-pi-ai` 适配器实时注册；测试连接可导入其公布的模型 ID，也可手动填写。本地端点（如 llama-server、llama-swap、Ollama 兼容服务）可以不填写 API Key。已配置的来源及其模型会按提供商分组显示在模型面板中。
+
+多数本地 OpenAI 兼容端点不会通过 `/v1/models` 公布模型的真实上下文窗口，因此每个模型都会默认按 256K 处理——这通常远大于本地模型实际支持的大小，可能导致 harness 无法正确压缩上下文。可在“模型 ID”字段中为某个模型追加 `:上下文大小` 来设置其真实上下文窗口，例如 `gemma-4-12b-heretic:32k, gpt-oss-20b:131072`。大小可使用 `k`（×1024）或 `m`（×1024×1024）后缀，也可以直接填写 token 数；未加后缀的 ID 会沿用内置容量表中的值（如果已知），否则默认按 256K 处理。
 
 自动附加的选区最长为 16 KB，超出部分会截断。手动附加同一文件选区后，宿主不会再次自动附加。
 

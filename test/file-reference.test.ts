@@ -15,6 +15,55 @@ import {
 } from '../src/webview/file-reference.js'
 
 describe('parseFileReference', () => {
+  it.each([
+    'TODO.md', 'README.md', 'AGENTS.md', 'app.ts', 'App.tsx', 'main.js', 'view.jsx',
+    'server.mjs', 'build.cjs', '__init__.py', 'main.go', 'lib.rs', 'Main.java',
+    'main.cpp', 'Program.cs', 'index.php', 'task.rb', 'App.swift', 'main.dart',
+    'init.lua', 'analysis.ipynb', 'package.json', 'config.yaml', 'Cargo.toml',
+    'styles.css', 'query.sql', 'build.sh', 'build.ps1', 'archive.tar.gz',
+    'schema.prisma', 'source.custom', 'foo.generated.dsl', 'script.pl', 'script.fsx',
+    '.env', '.gitignore', 'Dockerfile', 'Makefile', 'README', 'LICENSE', '说明.md',
+  ])('parses root-level %s with every supported location suffix', (path) => {
+    for (const [suffix, location] of [
+      [':12', { line: 12 }], [':12:5', { line: 12, column: 5 }],
+      [':12-18', { line: 12 }], ['#L12C5-L18C7', { line: 12, column: 5 }],
+    ] as const) {
+      const source = `${path}${suffix}`
+      expect(parseFileReference(source)).toEqual({ path, ...location })
+      expect(findFileReferences(source)).toEqual([{ path, ...location, start: 0, end: source.length }])
+    }
+  })
+
+  it.each([
+    '/Users/developer/project/src/main.ts', '/home/developer/project/src/main.py',
+    'C:\\Users\\开发者\\project\\src\\main.cpp', 'D:/project/src/main.rs',
+    '\\\\server\\share\\project\\main.go', './src/main.ts', '.\\src\\main.ts',
+    'src\\__init__.py', 'src/组件.tsx', './data.custom-extension',
+  ])('preserves cross-platform path spelling: %s', (path) => {
+    const source = `${path}:12:5`
+    expect(parseFileReference(source)).toEqual({ path, line: 12, column: 5 })
+    expect(findFileReferences(source)).toEqual([{ path, line: 12, column: 5, start: 0, end: source.length }])
+  })
+
+  it.each([
+    'https://example.com/a.ts:12', 'http://example.com:8080/main.py',
+    'mailto:a@b.com', 'file:///Users/a/main.rs:12', 'vscode://file/a.ts:12',
+    'command:workbench.action.openSettings', 'custom+scheme:a.ts:12', 'tel:123:4',
+    'data:123', '//example.com/main.py:12', 'www.example.com:80',
+    '<mailto:a@b.com>', '@https://example.com/a.ts:12', 'https%3A%2F%2Fexample.com%2Fa.ts%3A12',
+  ])('still excludes external references after parsing the location: %s', (source) => {
+    expect(parseFileReference(source)).toBeUndefined()
+  })
+
+  it('unwraps and decodes references without treating drive letters as line numbers', () => {
+    expect(parseFileReference('"README.md:12"')).toEqual({ path: 'README.md', line: 12 })
+    expect(parseFileReference('@app.ts:12')).toEqual({ path: 'app.ts', line: 12 })
+    expect(parseFileReference('src%2Fmain.py%3A12%3A5')).toEqual({ path: 'src/main.py', line: 12, column: 5 })
+    expect(parseFileReference('C:\\My Project\\main.ts:12')).toEqual({ path: 'C:\\My Project\\main.ts', line: 12 })
+    expect(parseFileReference('/Users/me/My Project/main.ts:12')).toEqual({ path: '/Users/me/My Project/main.ts', line: 12 })
+    expect(parseFileReference('%invalid')).toBeUndefined()
+  })
+
   it('parses relative, absolute, Windows, and line-anchor references', () => {
     expect(parseFileReference('src/extension.ts:41:7')).toEqual({ path: 'src/extension.ts', line: 41, column: 7 })
     expect(parseFileReference('/repo/src/app.ts#L12-L18')).toEqual({ path: '/repo/src/app.ts', line: 12 })
@@ -82,6 +131,10 @@ describe('looksLikeWebUrl', () => {
 })
 
 describe('findFileReferences', () => {
+  it.each(['.', ',', ';', '!', '?', ')', '。', '，'])('keeps punctuation after a line number outside the reference: %s', (punctuation) => {
+    expect(findFileReferences(`See app.ts:12${punctuation}`)).toEqual([{ path: 'app.ts', line: 12, start: 4, end: 13 }])
+  })
+
   it('locates clickable references in ordinary model prose', () => {
     const source = 'Update src/ui/view.ts:27, then verify package.json.'
 
@@ -93,6 +146,8 @@ describe('findFileReferences', () => {
 
   it('does not surface web-URL fragments as file references', () => {
     expect(findFileReferences('参考 docs.example.com/guide 与 example.com 文档')).toEqual([])
+    expect(findFileReferences('https://example.com/a.ts:12 mailto:a@b.com file:///repo/a.py:12')).toEqual([])
+    expect(findFileReferences('invalid.ts:12:bad READMEextra')).toEqual([])
   })
 })
 

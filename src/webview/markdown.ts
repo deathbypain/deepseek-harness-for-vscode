@@ -1,5 +1,6 @@
 import DOMPurify, { type Config } from 'dompurify'
 import MarkdownIt from 'markdown-it'
+import { preserveMarkdownFileReferences } from './markdown-file-references.js'
 import hljs from 'highlight.js/lib/core'
 import bash from 'highlight.js/lib/languages/bash'
 import csharp from 'highlight.js/lib/languages/csharp'
@@ -109,6 +110,7 @@ const markdown = new MarkdownIt({
 // Remote Markdown images are intentionally disabled: arbitrary image URLs
 // would add a privacy leak and are blocked by the Webview CSP anyway.
 markdown.disable('image')
+markdown.use(preserveMarkdownFileReferences)
 
 const SANITIZE_OPTIONS: Config = {
   ALLOWED_TAGS: [

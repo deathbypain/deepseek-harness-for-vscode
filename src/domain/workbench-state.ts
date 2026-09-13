@@ -110,6 +110,7 @@ export interface ModelView {
   readonly name: string
   readonly description?: string
   readonly reasoning: readonly ModelReasoningEffort[]
+  readonly contextWindow?: number
 }
 
 export interface ActiveSessionView {

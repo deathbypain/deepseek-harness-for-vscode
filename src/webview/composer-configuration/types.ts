@@ -12,6 +12,7 @@ export interface ModelConfigurationOption extends ConfigurationOption {
   readonly reasoning: readonly ConfigurationOption[]
   /** Whether the model accepts image input; drives the picker badge. */
   readonly imageInput?: boolean
+  readonly contextWindow?: number
 }
 
 export interface ComposerConfigurationInput {

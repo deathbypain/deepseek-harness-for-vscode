@@ -24,7 +24,13 @@ export function renderComposer(active: ActiveSessionView | undefined): void {
   elements.send.textContent = active?.running ? '■' : '↑'
   elements.send.title = active?.running ? `${t('stopGenerating')} · ${t('activityEscHint')}` : t('sendTitle')
   elements.send.setAttribute('aria-label', active?.running ? t('stopGenerating') : t('send'))
-  components.contextMeter.update(active?.contextPressure)
+  const stagedModel = components.composerConfiguration.stagedModel()
+  const effectivePressure = active?.contextPressure === undefined
+    ? undefined
+    : stagedModel?.contextWindow !== undefined && stagedModel.contextWindow > 0
+      ? { ...active.contextPressure, contextWindow: stagedModel.contextWindow }
+      : active.contextPressure
+  components.contextMeter.update(effectivePressure)
   elements.composerStatus.textContent = composerStatusText(active, {
     oneShotReadOnly: t('oneShotReadOnly'),
     continuableSubagent: t('continuableSubagent'),

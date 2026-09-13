@@ -16,6 +16,8 @@ type Translate = (key: WebviewMessageKey, args?: MessageArguments) => string
 export interface ComposerConfigurationComponent {
   readonly update: (input: ComposerConfigurationInput | undefined) => void
   readonly selection: () => PromptConfiguration | undefined
+  /** The currently staged model option, if any. */
+  readonly stagedModel: () => ModelConfigurationOption | undefined
   /** Whether the staged model accepts image input; undefined when unknown. */
   readonly supportsImageInput: () => boolean | undefined
   readonly markSubmitted: () => void
@@ -100,6 +102,10 @@ class ComposerConfigurationDom implements ComposerConfigurationComponent {
 
   selection(): PromptConfiguration | undefined {
     return this.store.snapshot()?.selection
+  }
+
+  stagedModel(): ModelConfigurationOption | undefined {
+    return this.store.snapshot()?.model
   }
 
   supportsImageInput(): boolean | undefined {

@@ -28,6 +28,7 @@ import { projectSessionChanges } from '../domain/session-changes.js'
 import { projectTurnChanges } from '../domain/turn-changes.js'
 import { isAutoEffort, resolveEffortIntent, type AutoEffortSignals, type EffortIntent, type PromptEffortSignals } from '../domain/session-effort.js'
 import { pickAutoModel, type ModelProfileInput } from '../domain/model-profile.js'
+import { modelCapacity } from '../domain/model-capacity.js'
 import { setTags, togglePinned } from '../domain/session-meta.js'
 import { projectSessionStats, projectionSessionStats } from '../domain/session-stats.js'
 import { sameWorkspacePath } from '../domain/workspace-scope.js'
@@ -359,7 +360,14 @@ export class HarnessGatewayService implements vscode.Disposable {
     const plan = projectionPlan(this.projections.plan)
     const goal = projectionGoal(this.projections.goal)
     const tokenUsage = projectionTokenUsage(this.projections.tokenUsage)
-    const contextPressure = projectionContextPressure(this.projections.contextPressure)
+    const currentProvider = this.models?.current?.provider ?? this.configuration.get().provider
+    const currentModel = this.models?.current?.model ?? this.configuration.get().model
+    const rawContextPressure = projectionContextPressure(this.projections.contextPressure)
+    const effectiveContextWindow = this.resolvedContextWindow(currentProvider, currentModel)
+      ?? rawContextPressure?.contextWindow
+    const contextPressure = rawContextPressure === undefined || effectiveContextWindow === undefined
+      ? undefined
+      : { ...rawContextPressure, contextWindow: effectiveContextWindow }
     const changes = projectSessionChanges(this.entries)
     const turnChanges = projectTurnChanges(this.entries, projected.messages)
     const stats = projectionSessionStats(this.projections.sessionStats) ?? projectSessionStats(this.entries)
@@ -372,14 +380,18 @@ export class HarnessGatewayService implements vscode.Disposable {
       ...(activeSummary.agentPreset === undefined ? {} : { agentPreset: activeSummary.agentPreset }),
       hasMore: this.hasMore,
       ...(this.models === undefined ? {} : { model: this.models.current }),
-      models: this.models?.groups.flatMap((group) => group.models.map((model) => ({
-        provider: group.id,
-        providerName: group.name,
-        id: model.id,
-        name: model.name,
-        ...(model.description === undefined ? {} : { description: model.description }),
-        reasoning: model.reasoning?.efforts ?? [],
-      }))) ?? [],
+      models: this.models?.groups.flatMap((group) => group.models.map((model) => {
+        const resolvedContext = this.resolvedContextWindow(group.id, model.id)
+        return {
+          provider: group.id,
+          providerName: group.name,
+          id: model.id,
+          name: model.name,
+          ...(model.description === undefined ? {} : { description: model.description }),
+          reasoning: model.reasoning?.efforts ?? [],
+          ...(resolvedContext === undefined ? {} : { contextWindow: resolvedContext }),
+        }
+      })) ?? [],
       messages: projected.messages,
       todos: projected.todos,
       ...(projected.retry === undefined ? {} : { retry: projected.retry }),
@@ -419,6 +431,21 @@ export class HarnessGatewayService implements vscode.Disposable {
   /** Whether the currently open conversation has selected this provider route. */
   isProviderInUse(provider: string): boolean {
     return isProviderRouteInUse(provider, this.models?.current.provider, this.activeSessionId !== undefined)
+  }
+
+  /**
+   * Resolves the effective context window (in tokens) for the active model.
+   * Checks the user's custom provider override first, then the bundled model
+   * capacity table, and returns undefined if neither is known (falling back to
+   * the projection or adapter default).
+   */
+  private resolvedContextWindow(provider?: string, model?: string): number | undefined {
+    if (provider === undefined || model === undefined || model === '') return undefined
+    const providerConfig = this.connectionSettings.state.providers.find((item) => item.id === provider)
+    const customSize = providerConfig?.modelContextWindows[model]
+      ?? (model.includes('/') ? providerConfig?.modelContextWindows[model.split('/').pop()!] : undefined)
+    if (customSize !== undefined && customSize > 0) return customSize
+    return modelCapacity(model)?.contextWindow
   }
 
   /** Typed upstream control-plane client for provider settings services. */

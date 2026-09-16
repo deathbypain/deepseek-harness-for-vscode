@@ -611,7 +611,7 @@ function modelIcon(id: string): string {
 }
 
 function presetIcon(id: string): string {
-  if (id === 'code') return '</>'
+  if (id === 'code' || id === 'ptc') return '</>'
   if (id === 'minimal') return '—'
   if (id === 'cordis') return icon('sparkle', 11)
   return '◎'

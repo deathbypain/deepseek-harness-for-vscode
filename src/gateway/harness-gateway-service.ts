@@ -17,6 +17,7 @@ import type {
 import type { PromptContentPart } from './gateway-wire.js'
 import type { AgentPresetRow as AgentPresetEntry, AgentPresetRoster } from '@deepseek-ai/dsh-agent-presets/types'
 import type { ConfigurationService } from '../config/configuration.js'
+import { localizedPresetDisplay } from '../domain/agent-preset-display.js'
 import { buildCarryOverMessage, type CarryTurn } from '../domain/carry-over.js'
 import { projectionContextPressure } from '../domain/context-pressure.js'
 import { isPermissionPresetId, type PermissionPresetId } from '../domain/permissions.js'
@@ -1839,7 +1840,8 @@ export class HarnessGatewayService implements vscode.Disposable {
   }
 
   private async refreshPresets(): Promise<void> {
-    this.presets = (await this.requireClient().agentPresetList()).presets
+    const roster = await this.requireClient().agentPresetList()
+    this.presets = roster.presets.map((preset) => localizedPresetDisplay(preset, (source) => vscode.l10n.t(source)))
     this.fireChange()
   }
 

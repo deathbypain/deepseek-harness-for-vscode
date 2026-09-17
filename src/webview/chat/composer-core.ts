@@ -15,6 +15,7 @@ import {
   t,
 } from './context.js'
 
+/** Repaints the composer toolbar (send state, context meter, status line) for the session. */
 export function renderComposer(active: ActiveSessionView | undefined): void {
   const ready = payload?.state.phase === 'connected' || payload?.state.phase === 'reconnecting'
   elements.prompt.disabled = !ready

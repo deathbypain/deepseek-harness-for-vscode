@@ -346,6 +346,7 @@ export class HarnessGatewayService implements vscode.Disposable {
     }
   }
 
+  /** Projects the current runtime state into the workbench DTO the UI renders. */
   async snapshot(): Promise<HarnessWorkbenchState> {
     const hasApiKey = this.connectionSettings.hasConfiguredProvider()
     const scoped = this.orderedSummaries().filter((summary) => this.inCurrentWorkspace(summary))
@@ -1839,6 +1840,7 @@ export class HarnessGatewayService implements vscode.Disposable {
     return { ...item, shared: true }
   }
 
+  /** Reloads the agent preset roster, substituting localized copy for built-ins. */
   private async refreshPresets(): Promise<void> {
     const roster = await this.requireClient().agentPresetList()
     this.presets = roster.presets.map((preset) => localizedPresetDisplay(preset, (source) => vscode.l10n.t(source)))

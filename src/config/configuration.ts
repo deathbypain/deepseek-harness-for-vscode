@@ -65,6 +65,7 @@ export class ConfigurationService implements vscode.Disposable {
     })
   }
 
+  /** Reads the current workspace settings as an immutable harness configuration. */
   get(): HarnessConfiguration {
     const config = vscode.workspace.getConfiguration('deepseekHarness')
 
@@ -210,6 +211,7 @@ function nonEmpty(value: string | undefined, fallback: string): string {
   return normalized === undefined || normalized === '' ? fallback : normalized
 }
 
+/** Resolves the configured model id, falling back to the catalog default when unset. */
 function configuredModel(value: string | undefined): string {
   const normalized = value?.trim()
   return normalized === undefined || normalized === '' ? MODEL_OPTIONS[0].id : normalized

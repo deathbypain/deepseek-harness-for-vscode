@@ -39,6 +39,7 @@ export function numberValue(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) ? value : undefined
 }
 
+/** Coerces untrusted webview form values into the validated settings input shape. */
 export function settingsInput(value: Record<string, unknown>): ConnectionSettingsInput {
   const provider = typeof value.provider === 'string' && value.provider !== '' ? value.provider : 'deepseek-official'
   const name = typeof value.name === 'string' ? value.name : ''

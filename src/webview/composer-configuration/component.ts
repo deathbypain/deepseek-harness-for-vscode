@@ -610,6 +610,7 @@ function modelIcon(id: string): string {
   return '◇'
 }
 
+/** Maps one agent preset id to its compact toolbar glyph. */
 function presetIcon(id: string): string {
   if (id === 'code' || id === 'ptc') return '</>'
   if (id === 'minimal') return '—'

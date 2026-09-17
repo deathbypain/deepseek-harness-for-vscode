@@ -142,6 +142,7 @@ export class ConnectionSettingsService {
     return this.stateValue
   }
 
+  /** Persists a normalized provider profile and optional credentials; returns the provider id. */
   async apply(input: ConnectionSettingsInput): Promise<string> {
     const normalized = normalizeInput(input)
     if (normalized.provider === DEEPSEEK_OFFICIAL_PROVIDER) {

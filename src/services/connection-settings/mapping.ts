@@ -59,6 +59,7 @@ export function credentialRef(entry: ConfigurableProviderView, namespace: Settin
   return credentialRefForProfile(valueAt(namespace?.value, entry.settingsPath), entry.provider)
 }
 
+/** Validates raw form input and fills derived fields (relay models, context overrides) before it is persisted. */
 export function normalizeInput(input: ConnectionSettingsInput): ConnectionSettingsInput {
   const name = input.name.trim()
   const baseUrl = input.baseUrl.trim()
@@ -155,6 +156,7 @@ export function relayModels(
   })
 }
 
+/** Assembles the wire profile a custom relay provider is written with. */
 export function deepSeekRelayProfile(
   displayName: string,
   baseURL: string,

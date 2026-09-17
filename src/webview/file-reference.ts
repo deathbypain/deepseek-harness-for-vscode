@@ -9,13 +9,33 @@ export interface LocatedFileReference extends FileReference {
   readonly end: number
 }
 
-const FILE_REFERENCE_PATTERN = /(?:(?:(?:[a-z]:)?[\\/]|\.{1,2}[\\/]|[\w@+-]+[\\/])(?:[\w@+.-]+[\\/])*[\w@+.-]+|[\w@+-]+\.[a-z][a-z0-9._-]{0,15})(?::\d+(?::\d+|-\d+)?|#L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?)?/giu
+const KNOWN_EXTENSIONLESS_NAME = String.raw`(?:Dockerfile|Makefile|Procfile|README|LICENSE)`
+const PATH_SEGMENT = String.raw`[\p{L}\p{N}_@+.-]+`
+// Boundaries prevent partial matches inside URIs (mailto:… / https://…) or
+// malformed locations. Both native separators and Unicode names are accepted
+// without importing the current OS's path rules into the webview.
+const FILE_REFERENCE_PATTERN = new RegExp([
+  String.raw`(?<![\p{L}\p{N}_@+./\\:-])`,
+  String.raw`(?:`,
+  String.raw`(?:(?:[a-z]:)?[\\/]{1,2}|\.{1,2}[\\/]|${PATH_SEGMENT}[\\/])(?:${PATH_SEGMENT}[\\/])*${PATH_SEGMENT}`,
+  String.raw`|[\p{L}\p{N}_@+-]+\.[a-z][a-z0-9._-]{0,15}|\.[\p{L}\p{N}_][\p{L}\p{N}_.-]*|${KNOWN_EXTENSIONLESS_NAME})`,
+  String.raw`(?::\d+(?::\d+|-\d+)?|#L\d+(?:C\d+)?(?:-L\d+(?:C\d+)?)?)?`,
+  String.raw`(?![\p{L}\p{N}_@+/\\:#-]|\.[\p{L}\p{N}_])`,
+].join(''), 'giu')
 
 /** Parses model-produced workspace references such as src/app.ts:12:4. */
 export function parseFileReference(raw: string): FileReference | undefined {
   const decoded = decodeReference(raw.trim())
-  if (decoded === undefined || decoded === '' || hasExternalScheme(decoded) || looksLikeWebUrl(decoded)) return undefined
+  if (decoded === undefined || decoded === '') return undefined
   const unwrapped = unwrap(decoded.replace(/^@/u, ''))
+  if (looksLikeWebUrl(unwrapped)) return undefined
+  // Extract the optional location before inspecting the path for a URI scheme:
+  // "app.ts:12" otherwise looks like the scheme "app.ts:". result() still
+  // rejects genuine schemes. Keep the web-host heuristic on the original
+  // candidate: testing only the stripped path would mistake unfamiliar file
+  // extensions (e.g. schema.prisma:12) for domains. Ambiguous bare name:digits
+  // candidates remain subject to Host existence checks; rendered web anchors
+  // are handled separately before prose/inline-code file candidates.
   const hash = /^(.*)#L(\d+)(?:C(\d+))?(?:-L\d+(?:C\d+)?)?$/iu.exec(unwrapped)
   if (hash !== null) return result(hash[1], hash[2], hash[3], true)
   const lineAndColumn = /^(.*):(\d+):(\d+)$/u.exec(unwrapped)
@@ -24,7 +44,7 @@ export function parseFileReference(raw: string): FileReference | undefined {
   if (lineRange !== null) return result(lineRange[1], lineRange[2], undefined, true)
   const lineOnly = /^(.*):(\d+)$/u.exec(unwrapped)
   if (lineOnly !== null) return result(lineOnly[1], lineOnly[2], undefined, true)
-  return looksLikeFile(unwrapped) ? { path: unwrapped } : undefined
+  return result(unwrapped, undefined, undefined)
 }
 
 /** Finds plain-text file references without interpreting surrounding prose. */
@@ -47,7 +67,7 @@ export function fileExtension(path: string): string | undefined {
 }
 
 function result(path: string | undefined, line: string | undefined, column: string | undefined, positional = false): FileReference | undefined {
-  if (path === undefined || !looksLikeFile(path, positional)) return undefined
+  if (path === undefined || hasExternalScheme(path) || !looksLikeFile(path, positional)) return undefined
   const parsedLine = positiveInteger(line)
   const parsedColumn = positiveInteger(column)
   return {
@@ -66,7 +86,7 @@ function result(path: string | undefined, line: string | undefined, column: stri
  * even when the basename has no extension.
  */
 function looksLikeFile(value: string, positional = false): boolean {
-  if (value === '' || /[\n\r\t]/u.test(value) || value.endsWith('/')) return false
+  if (value === '' || /[\0\n\r\t]/u.test(value) || /[\\/]$/u.test(value)) return false
   // A root-level single segment (e.g. `/guide`) is a URL fragment left over
   // from prose, not a workspace file reference.
   if (value.startsWith('/') && !value.slice(1).includes('/') && !/\.\w+$/u.test(value)) return false
@@ -78,8 +98,8 @@ function looksLikeFile(value: string, positional = false): boolean {
 }
 
 function looksLikeFileBasename(basename: string): boolean {
-  return /^\.?[\w@+-]+\.[a-z][a-z0-9._-]{0,15}$/iu.test(basename)
-    || /^\.\w[\w.-]*$/u.test(basename)
+  return /^\.?[\p{L}\p{N}_@+-]+\.[a-z][a-z0-9._-]{0,15}$/iu.test(basename)
+    || /^\.[\p{L}\p{N}_][\p{L}\p{N}_.-]*$/u.test(basename)
     || /^(?:Dockerfile|Makefile|Procfile|README|LICENSE)$/iu.test(basename)
 }
 

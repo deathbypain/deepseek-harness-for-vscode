@@ -21,7 +21,7 @@ import { localizedPresetDisplay } from '../domain/agent-preset-display.js'
 import { buildCarryOverMessage, type CarryTurn } from '../domain/carry-over.js'
 import { projectionContextPressure } from '../domain/context-pressure.js'
 import { isPermissionPresetId, type PermissionPresetId } from '../domain/permissions.js'
-import { isProviderRouteInUse } from '../domain/provider.js'
+import { DEEPSEEK_OFFICIAL_PROVIDER, isProviderRouteInUse } from '../domain/provider.js'
 import type { PromptAttachment } from '../domain/prompt-context.js'
 import { agentPresetTransition, type PromptConfiguration } from '../domain/prompt-configuration.js'
 import { conversationTitle } from '../domain/session-title.js'
@@ -365,8 +365,13 @@ export class HarnessGatewayService implements vscode.Disposable {
     const currentProvider = this.models?.current?.provider ?? this.configuration.get().provider
     const currentModel = this.models?.current?.model ?? this.configuration.get().model
     const rawContextPressure = projectionContextPressure(this.projections.contextPressure)
-    const effectiveContextWindow = this.resolvedContextWindow(currentProvider, currentModel)
-      ?? rawContextPressure?.contextWindow
+    const tableContextWindow = this.resolvedContextWindow(currentProvider, currentModel)
+    // For the official provider the harness-reported window is authoritative and
+    // the bundled table is only a snapshot; for a custom relay the table is the
+    // right fallback over the adapter's 256K default, so keep the table first.
+    const effectiveContextWindow = currentProvider === DEEPSEEK_OFFICIAL_PROVIDER
+      ? rawContextPressure?.contextWindow ?? tableContextWindow
+      : tableContextWindow ?? rawContextPressure?.contextWindow
     const contextPressure = rawContextPressure === undefined || effectiveContextWindow === undefined
       ? undefined
       : { ...rawContextPressure, contextWindow: effectiveContextWindow }

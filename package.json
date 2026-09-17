@@ -164,14 +164,6 @@
         },
         "deepseekHarness.model": {
           "type": "string",
-          "enum": [
-            "deepseek-v4-flash",
-            "deepseek-v4-pro"
-          ],
-          "enumDescriptions": [
-            "%config.model.flash%",
-            "%config.model.pro%"
-          ],
           "default": "deepseek-v4-flash",
           "description": "%config.model%"
         },

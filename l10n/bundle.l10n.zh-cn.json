@@ -344,7 +344,7 @@
   "Configured — leave blank to keep it": "已配置；留空可保留现有密钥",
   "Model IDs": "模型 ID",
   "deepseek-v4-flash, deepseek-v4-pro": "deepseek-v4-flash, deepseek-v4-pro",
-  "Model ids your endpoint exposes, comma-separated. Add :contextSize to set a model's context window (e.g. model-id:32k) — most local endpoints do not report this, so it defaults to 256K otherwise. Test the connection to fill ids in automatically.": "填写你的端点实际暴露的模型 ID，多个用逗号分隔。可加 :上下文大小 来设置某个模型的上下文窗口（例如 model-id:32k）——大多数本地端点不会上报该信息，否则默认按 256K 处理。点击“测试连接”可自动填充 ID。",
+  "Model ids your endpoint exposes, comma-separated. Add :contextSize to set a model's context window (e.g. model-id:32k) — most local endpoints do not report this, so known models keep the built-in capacity table value and unknown models default to 256K. Test the connection to fill ids in automatically.": "填写你的端点实际暴露的模型 ID，多个用逗号分隔。可加 :上下文大小 来设置某个模型的上下文窗口（例如 model-id:32k）——大多数本地端点不会上报该信息，已知模型会使用内置容量表中的值（如果已知，未知模型否则默认按 256K 处理。点击“测试连接”可自动填充 ID。",
   "Open full settings": "打开完整设置",
   "Apply": "应用",
   "Close settings": "关闭设置",

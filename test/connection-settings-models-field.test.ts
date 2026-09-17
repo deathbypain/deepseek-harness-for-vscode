@@ -58,6 +58,15 @@ describe('parseModelsField', () => {
     })
   })
 
+  it('rejects sizes whose scaled token count overflows to non-finite', () => {
+    // 350 digits exceed the largest double, so the `m` multiplier overflows to Infinity.
+    const oversized = '9'.repeat(350)
+    expect(parseModelsField(`model-a:${oversized}m`)).toEqual({
+      ids: [`model-a:${oversized}m`],
+      contextWindows: {},
+    })
+  })
+
   it('splits on commas, spaces, and full-width commas alike', () => {
     expect(parseModelsField('model-a:32k model-b:64k，model-c')).toEqual({
       ids: ['model-a', 'model-b', 'model-c'],

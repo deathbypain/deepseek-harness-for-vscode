@@ -283,7 +283,8 @@ function parseContextWindow(raw: string): number | undefined {
   const unit = match[2]?.toLowerCase()
   const multiplier = unit === 'k' ? 1024 : unit === 'm' ? 1024 * 1024 : 1
   const tokens = Math.round(value * multiplier)
-  return tokens > 0 ? tokens : undefined
+  if (!Number.isFinite(tokens) || tokens <= 0) return undefined
+  return tokens
 }
 
 /** Renders `k`-suffixed sizes for round values so the field stays compact. */

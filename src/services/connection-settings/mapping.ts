@@ -107,8 +107,10 @@ export function normalizeModelContextWindows(
   const normalized: Record<string, number> = {}
   for (const [id, value] of Object.entries(contextWindows)) {
     if (!known.has(id)) continue
-    if (!Number.isFinite(value) || value <= 0) continue
-    normalized[id] = Math.round(value)
+    if (!Number.isFinite(value)) continue
+    const contextWindow = Math.round(value)
+    if (contextWindow <= 0) continue
+    normalized[id] = contextWindow
   }
   return normalized
 }

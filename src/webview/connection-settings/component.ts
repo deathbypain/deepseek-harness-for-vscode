@@ -260,14 +260,16 @@ export function parseModelsField(value: string): { ids: string[]; contextWindows
   return { ids, contextWindows }
 }
 
+/** Parses a raw token count or a `k`/`m`-suffixed size into tokens; undefined when invalid. */
 function parseContextWindow(raw: string): number | undefined {
   const match = /^(\d+(?:\.\d+)?)\s*([km])?$/iu.exec(raw)
   if (match === null) return undefined
   const value = Number(match[1])
-  if (!Number.isFinite(value) || value <= 0) return undefined
+  if (!Number.isFinite(value)) return undefined
   const unit = match[2]?.toLowerCase()
   const multiplier = unit === 'k' ? 1024 : unit === 'm' ? 1024 * 1024 : 1
-  return Math.round(value * multiplier)
+  const tokens = Math.round(value * multiplier)
+  return tokens > 0 ? tokens : undefined
 }
 
 /** Renders `k`-suffixed sizes for round values so the field stays compact. */
@@ -277,6 +279,7 @@ function formatContextWindow(tokens: number): string {
   return String(tokens)
 }
 
+/** Renders ids with per-model sizes back into the Model IDs text field. */
 function formatModelsField(ids: readonly string[], contextWindows: Readonly<Record<string, number>>): string {
   return ids.map((id) => {
     const size = contextWindows[id]

@@ -64,8 +64,10 @@ export function modelContextWindowsInput(value: unknown): Readonly<Record<string
   if (!isRecord(value)) return {}
   const result: Record<string, number> = {}
   for (const [id, raw] of Object.entries(value)) {
-    if (id === '' || typeof raw !== 'number' || !Number.isFinite(raw) || raw <= 0) continue
-    result[id] = Math.round(raw)
+    if (id === '' || typeof raw !== 'number' || !Number.isFinite(raw)) continue
+    const tokens = Math.round(raw)
+    if (tokens <= 0) continue
+    result[id] = tokens
   }
   return result
 }

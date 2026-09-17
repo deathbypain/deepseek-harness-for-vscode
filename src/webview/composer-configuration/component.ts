@@ -104,8 +104,13 @@ class ComposerConfigurationDom implements ComposerConfigurationComponent {
     return this.store.snapshot()?.selection
   }
 
+  /** The model option currently staged in the model picker, if any. */
   stagedModel(): ModelConfigurationOption | undefined {
-    return this.store.snapshot()?.model
+    const snapshot = this.store.snapshot()
+    if (snapshot === undefined) return undefined
+    // Auto mode has not resolved a concrete model yet; do not report a guess.
+    if (snapshot.autoActive) return undefined
+    return snapshot.model
   }
 
   supportsImageInput(): boolean | undefined {

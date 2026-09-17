@@ -4,7 +4,6 @@ import {
   MODEL_OPTIONS,
   REASONING_OPTIONS,
   agentPresetId,
-  modelId,
   reasoningEffort,
   type AgentPresetId,
   type ModelId,

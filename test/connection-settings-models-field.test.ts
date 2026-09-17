@@ -30,10 +30,31 @@ describe('parseModelsField', () => {
     })
   })
 
-  it('ignores an invalid or non-positive size suffix but keeps the id', () => {
-    expect(parseModelsField('model-a:not-a-number, model-b:0, model-c:-5')).toEqual({
-      ids: ['model-a', 'model-b', 'model-c'],
+  it('keeps a colon-qualified id intact when the suffix is not a valid size', () => {
+    // `gpt-oss:20b` is an Ollama model name with a tag, not a context size.
+    expect(parseModelsField('gpt-oss:20b')).toEqual({
+      ids: ['gpt-oss:20b'],
       contextWindows: {},
+    })
+    expect(parseModelsField('model-a:not-a-number, model-b:0')).toEqual({
+      ids: ['model-a:not-a-number', 'model-b:0'],
+      contextWindows: {},
+    })
+  })
+
+  it('deduplicates repeated ids and keeps the latest size override', () => {
+    expect(parseModelsField('model-a, model-a:32k')).toEqual({
+      ids: ['model-a'],
+      contextWindows: { 'model-a': 32_768 },
+    })
+    // A bare repeat does not discard a size an earlier occurrence set.
+    expect(parseModelsField('model-a:32k, model-a')).toEqual({
+      ids: ['model-a'],
+      contextWindows: { 'model-a': 32_768 },
+    })
+    expect(parseModelsField('model-a:32k, model-a:16k')).toEqual({
+      ids: ['model-a'],
+      contextWindows: { 'model-a': 16_384 },
     })
   })
 

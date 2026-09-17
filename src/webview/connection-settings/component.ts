@@ -244,17 +244,31 @@ function required<T extends HTMLElement>(document: Document, id: string): T {
  * bare model id or `id:contextWindow`, where the size accepts a `k`/`m`
  * suffix (`32k` = 32768, `1m` = 1048576) for convenience since local
  * OpenAI-compatible endpoints rarely disclose their real context window.
+ * The suffix is only interpreted when it is a valid size, so ids that
+ * contain a colon (e.g. Ollama's `gpt-oss:20b`) stay intact. Repeated ids
+ * are emitted once; a later occurrence's size overrides an earlier one.
  */
 export function parseModelsField(value: string): { ids: string[]; contextWindows: Record<string, number> } {
   const ids: string[] = []
   const contextWindows: Record<string, number> = {}
+  const seen = new Set<string>()
   for (const token of value.split(/[,，\s]+/u).map((item) => item.trim()).filter((item) => item !== '')) {
+    let id = token
+    let size: number | undefined
     const separator = token.lastIndexOf(':')
-    const id = (separator < 0 ? token : token.slice(0, separator)).trim()
+    if (separator > 0) {
+      const candidate = parseContextWindow(token.slice(separator + 1).trim())
+      if (candidate !== undefined) {
+        id = token.slice(0, separator)
+        size = candidate
+      }
+    }
+    id = id.trim()
     if (id === '') continue
-    ids.push(id)
-    if (separator < 0) continue
-    const size = parseContextWindow(token.slice(separator + 1).trim())
+    if (!seen.has(id)) {
+      seen.add(id)
+      ids.push(id)
+    }
     if (size !== undefined) contextWindows[id] = size
   }
   return { ids, contextWindows }

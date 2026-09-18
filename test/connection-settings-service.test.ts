@@ -161,13 +161,13 @@ describe('ConnectionSettingsService', () => {
     })
 
     expect(route).toBe('plain-relay')
-    // No user override was set, so entries carry only what the table
-    // supplies as a runtime value (maxTokens); the context window falls back
-    // to the table at read time instead of being persisted.
+    // No user override was set, so the entries carry the adapter-owned
+    // table backfill: the published adapter resolves the entry contextWindow
+    // else falls back to its 256K default, which would misflag 1M usage.
     expect(harness.document.piAi.value.providers['plain-relay']!.models).toEqual([
-      { id: 'deepseek-v4-flash', maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
-      { id: 'deepseek-v4-pro', maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
-      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-flash', contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-pro', contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
     ])
   })
 
@@ -185,7 +185,7 @@ describe('ConnectionSettingsService', () => {
     })
 
     expect(harness.document.piAi.value.providers[route]!.models).toEqual([
-      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
       { id: 'plain-text-model', reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
     ])
   })
@@ -210,7 +210,7 @@ describe('ConnectionSettingsService', () => {
 
     const models = harness.document.piAi.user.providers['old-relay']!['models'] as unknown[]
     expect(models).toEqual([
-      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-flash-vision-exp', input: ['text', 'image'], contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
       // pi-ai's declaredInput treats [] as undeclared, so the migration fills it.
       { id: 'custom-vision-x', input: ['text', 'image'], reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
       // An explicit text-only declaration is honored.
@@ -240,7 +240,7 @@ describe('ConnectionSettingsService', () => {
 
     const models = harness.document.piAi.user.providers['volcengine-ark']!['models'] as unknown[]
     expect(models).toEqual([
-      { id: 'deepseek-v4-flash', maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
+      { id: 'deepseek-v4-flash', contextWindow: 1_000_000, maxTokens: 384_000, reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' } },
       { id: 'custom-model', reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'custom-max' } },
       'plain-string-model',
     ])

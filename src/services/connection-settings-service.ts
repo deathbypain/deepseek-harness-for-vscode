@@ -50,6 +50,7 @@ const EMPTY_STATE: ConnectionSettingsState = {
     name: 'DeepSeek Official',
     baseUrl: DEEPSEEK_OFFICIAL_BASE_URL,
     models: [],
+    modelContextWindows: {},
     apiKeyConfigured: false,
     credentialWritable: false,
     removable: false,
@@ -141,6 +142,7 @@ export class ConnectionSettingsService {
     return this.stateValue
   }
 
+  /** Persists a normalized provider profile and optional credentials; returns the provider id. */
   async apply(input: ConnectionSettingsInput): Promise<string> {
     const normalized = normalizeInput(input)
     if (normalized.provider === DEEPSEEK_OFFICIAL_PROVIDER) {
@@ -158,12 +160,19 @@ export class ConnectionSettingsService {
     }
     const existing = this.stateValue.providers.find((provider) => provider.id === route)
     if (input.provider === '__new__' && existing !== undefined) throw new Error('A provider with this name already exists.')
-    if (input.provider === '__new__' && normalized.apiKey === '') throw new Error('The provider API key cannot be empty.')
-
     const client = this.requireClient()
     const namespace = await this.namespace(PI_AI_SETTINGS_NS)
     const keyRef = providerKeyEnv(route)
-    const profile = deepSeekRelayProfile(normalized.name, normalized.baseUrl, keyRef, normalized.models) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue
+    // A new provider submitted with a blank key is deliberately keyless: omit
+    // `apiKeyEnv` so the pi-ai adapter resolves it as unauthenticated instead
+    // of failing every request on an unset credential ref (MISSING_CREDENTIAL).
+    const profile = deepSeekRelayProfile(
+      normalized.name,
+      normalized.baseUrl,
+      normalized.apiKey === '' ? undefined : keyRef,
+      normalized.models,
+      normalized.modelContextWindows,
+    ) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue
     const ops: SettingsPathOpView[] = existing === undefined
       ? [{ op: 'set', path: ['providers', route], value: profile }]
       : [
@@ -171,7 +180,7 @@ export class ConnectionSettingsService {
           { op: 'set', path: ['providers', route, 'baseURL'], value: normalized.baseUrl },
           { op: 'set', path: ['providers', route, 'api'], value: 'openai-completions' },
           { op: 'set', path: ['providers', route, 'compat'], value: relayCompat() as unknown as import('@deepseek-ai/dsh-util-values').JsonValue },
-          { op: 'set', path: ['providers', route, 'models'], value: relayModels(normalized.models) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue },
+          { op: 'set', path: ['providers', route, 'models'], value: relayModels(normalized.models, normalized.modelContextWindows) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue },
           ...(normalized.apiKey === '' ? [] : [{ op: 'set' as const, path: ['providers', route, 'apiKeyEnv'], value: keyRef }]),
         ]
     await client.settingsMutate(PI_AI_SETTINGS_NS, ops as import('@deepseek-ai/dsh-settings/types').SettingsPathOpView[], namespace.revision)

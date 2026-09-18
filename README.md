@@ -131,7 +131,9 @@ Marketplace cards classify known entries as **Agent compatible**, **Agent works 
 
 Provider endpoints and write-only credential references are managed through the bundled Harness settings and credentials services. API keys are stored in the extension's private Harness home, are never returned to the webview, and are not written to project-level `.vscode/settings.json`. Legacy `deepseekHarness.apiKey`, `baseUrl`, and `providers` values are imported once and then removed.
 
-Use the Connection settings panel to add, edit, test, or remove DeepSeek relay sources. Custom sources are registered live through the upstream `llm-pi-ai` adapter and expose the same Flash/Pro choices in the model panel.
+Use the Connection settings panel to add, edit, test, or remove OpenAI-compatible sources. Custom sources are registered live through the upstream `llm-pi-ai` adapter; test the endpoint to import its advertised model ids, or enter them manually. API keys are optional for local endpoints such as llama-server, llama-swap, and Ollama-compatible servers. Configured providers and their models appear in the model panel grouped by provider.
+
+Most local OpenAI-compatible endpoints do not disclose a model's real context window over `/v1/models`, so every model otherwise falls back to a 256K default — often much larger than what the local model actually supports, which can prevent the harness from compacting context correctly. Set a model's real context size in the Model IDs field by appending `:contextSize` to its id, e.g. `gemma-4-12b-heretic:32k, gpt-oss-20b:131072`. Sizes accept a `k` (×1024) or `m` (×1024×1024) suffix or a raw token count; ids without a suffix keep the built-in capacity table entry (if known) or the 256K default.
 
 Automatically attached selections are limited to 16 KB and are truncated when necessary. If the same file selection is already embedded manually, the host will not attach it again.
 

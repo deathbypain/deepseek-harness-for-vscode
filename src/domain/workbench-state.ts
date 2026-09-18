@@ -110,6 +110,8 @@ export interface ModelView {
   readonly name: string
   readonly description?: string
   readonly reasoning: readonly ModelReasoningEffort[]
+  /** The model's effective context window (tokens), when known. */
+  readonly contextWindow?: number
 }
 
 export interface ActiveSessionView {

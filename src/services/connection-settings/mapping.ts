@@ -130,9 +130,12 @@ export function isLegacyRelayReasoningEfforts(efforts: object): boolean {
 
 /**
  * Wire model entries carrying the extension's effort map, modalities and
- * capacity. A user-specified `contextWindows[id]` always wins over the
- * bundled capacity table, since it reflects how the operator actually
- * configured their (often local) endpoint.
+ * user-set capacity. Only a user-specified `contextWindows[id]` is persisted
+ * as `contextWindow`: persisting the bundled capacity table's value would pin
+ * it as if the user had typed it, and a later table correction could never
+ * reach that provider. The effective window falls back to the table at read
+ * time instead. `maxTokens` is always table-sourced: it is a runtime clamp
+ * that never renders back into the settings form.
  */
 export function relayModels(
   models: readonly string[],
@@ -142,7 +145,6 @@ export function relayModels(
   return ids.map((id) => {
     const override = contextWindows?.[id]
     const capacity = modelCapacity(id)
-    const contextWindow = override ?? capacity?.contextWindow
     return {
       id,
       reasoningEfforts: { ...RELAY_REASONING_EFFORTS },
@@ -150,10 +152,8 @@ export function relayModels(
       // vision route must declare its modalities or image prompts are rejected
       // at admission even after the session switched to it.
       ...(supportsImageInput(id) ? { input: ['text', 'image'] } : {}),
-      ...(contextWindow === undefined ? {} : {
-        contextWindow,
-        ...(capacity?.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
-      }),
+      ...(override === undefined ? {} : { contextWindow: override }),
+      ...(capacity?.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
     }
   })
 }
@@ -260,10 +260,10 @@ function modelsField(value: unknown): readonly string[] {
 }
 
 /**
- * Reads back the context window every model entry actually carries (whether
- * set by the user or backfilled from the bundled capacity table), so the
- * settings form can show and let the user edit the value that is really in
- * effect.
+ * Reads back the context windows the user explicitly set on each model
+ * entry, so the settings form pre-fills only actual user overrides. The
+ * bundled capacity table's values never appear here; when absent, the
+ * effective window falls back to the table at read time.
  */
 function modelContextWindowsField(value: unknown): Readonly<Record<string, number>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}

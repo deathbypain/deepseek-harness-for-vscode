@@ -6,10 +6,10 @@ export interface ConnectionProviderView {
   /** Model ids this provider's profile exposes; empty means the defaults. */
   readonly models: readonly string[]
   /**
-   * Per-model context window overrides (tokens), keyed by model id. Populated
-   * either by the user (local endpoints rarely disclose this) or backfilled
-   * from the bundled capacity table. Absent ids fall back to the adapter's
-   * built-in 256K default.
+   * Per-model context windows (tokens) the user explicitly set, keyed by
+   * model id. The bundled capacity table's values never appear here; when
+   * absent, the effective window falls back to the table at read time, then
+   * to the adapter's built-in default.
    */
   readonly modelContextWindows: Readonly<Record<string, number>>
   readonly apiKeyConfigured: boolean

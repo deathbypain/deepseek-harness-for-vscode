@@ -67,6 +67,22 @@ describe('parseModelsField', () => {
     })
   })
 
+  it('rejects values that stay finite on parse but overflow after a k/m multiplier', () => {
+    // A 303-digit raw token count parses to a finite double (~2e302, still
+    // below Number.MAX_VALUE), but applying a `k`/`m` multiplier pushes the
+    // scaled total to Infinity. The size must be dropped and the original
+    // token preserved intact as the id (no suffix interpretation).
+    const huge = '1' + '0'.repeat(306)
+    expect(parseModelsField(`model-a:${huge}m`)).toEqual({
+      ids: [`model-a:${huge}m`],
+      contextWindows: {},
+    })
+    expect(parseModelsField(`model-a:${huge}k`)).toEqual({
+      ids: [`model-a:${huge}k`],
+      contextWindows: {},
+    })
+  })
+
   it('splits on commas, spaces, and full-width commas alike', () => {
     expect(parseModelsField('model-a:32k model-b:64k，model-c')).toEqual({
       ids: ['model-a', 'model-b', 'model-c'],

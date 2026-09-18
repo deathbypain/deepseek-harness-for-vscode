@@ -158,17 +158,41 @@ export function relayModels(
   })
 }
 
-/** Assembles the wire profile a custom relay provider is written with. */
+/**
+ * The `authorization` header a keyless relay profile carries. pi-ai's
+ * openai-completions transport refuses to stream when it is given neither an
+ * apiKey nor an `authorization` header (`No API key for provider`); a
+ * non-empty header satisfies that check and lets the request go out
+ * unauthenticated. Keyless endpoints ignore the header's value, so this fixed
+ * sentinel only exists to pass the transport's guard — it is not a credential.
+ */
+export const KEYLESS_AUTHORIZATION = 'Bearer keyless'
+
+/**
+ * Assembles the wire profile a custom relay provider is written with.
+ *
+ * Omit `apiKeyEnv` (pass `undefined`) for a deliberately keyless provider.
+ * That omits the credential ref entirely, so the pi-ai adapter resolves the
+ * route to no credential instead of failing every request with
+ * `MISSING_CREDENTIAL` (only a ref that names an unset credential throws). For
+ * a keyless profile it also writes `headers.authorization` with
+ * {@link KEYLESS_AUTHORIZATION}: the transport's `getClientApiKey` throws
+ * `No API key for provider` unless an `apiKey` or an `authorization` header is
+ * present, so omitting `apiKeyEnv` alone would still break every completion.
+ * A keyed profile writes `apiKeyEnv` and no placeholder header.
+ */
 export function deepSeekRelayProfile(
   displayName: string,
   baseURL: string,
-  apiKeyEnv: string,
+  apiKeyEnv?: string,
   models?: readonly string[],
   contextWindows?: Readonly<Record<string, number>>,
 ): object {
+  const keyless = apiKeyEnv === undefined
   return {
     displayName,
-    apiKeyEnv,
+    ...(!keyless ? { apiKeyEnv } : {}),
+    ...(keyless ? { headers: { authorization: KEYLESS_AUTHORIZATION } } : {}),
     api: 'openai-completions',
     baseURL,
     compat: relayCompat(),

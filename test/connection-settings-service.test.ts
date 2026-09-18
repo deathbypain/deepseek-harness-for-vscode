@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ConfigurationService } from '../src/config/configuration.js'
 import { ConnectionSettingsService } from '../src/services/connection-settings-service.js'
+import { KEYLESS_AUTHORIZATION } from '../src/services/connection-settings/mapping.js'
 import type { CredentialStore } from '../src/security/credential-store.js'
 
 interface HarnessDocument {
@@ -63,11 +64,19 @@ describe('ConnectionSettingsService', () => {
     })
 
     expect(route).toBe('local-llama')
-    expect(harness.document.piAi.value.providers['local-llama']).toMatchObject({
+    const profile = harness.document.piAi.value.providers['local-llama']
+    expect(profile).toMatchObject({
       displayName: 'Local Llama',
       baseURL: 'http://127.0.0.1:8080/v1',
-      apiKeyEnv: 'PROVIDER_LOCAL_LLAMA_API_KEY',
+      // The keyless transport guard requires an `authorization` header to
+      // stream at all (No API key for provider), so a keyless profile must
+      // carry one — the endpoint ignores its value.
+      headers: { authorization: KEYLESS_AUTHORIZATION },
     })
+    // A keyless provider must not name an unset credential ref: the pi-ai
+    // adapter resolves an absent apiKeyEnv as unauthenticated instead of
+    // failing every request with MISSING_CREDENTIAL.
+    expect(profile).not.toHaveProperty('apiKeyEnv')
     expect(harness.document.credentials.PROVIDER_LOCAL_LLAMA_API_KEY).toBeUndefined()
   })
 

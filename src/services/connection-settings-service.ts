@@ -163,7 +163,16 @@ export class ConnectionSettingsService {
     const client = this.requireClient()
     const namespace = await this.namespace(PI_AI_SETTINGS_NS)
     const keyRef = providerKeyEnv(route)
-    const profile = deepSeekRelayProfile(normalized.name, normalized.baseUrl, keyRef, normalized.models, normalized.modelContextWindows) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue
+    // A new provider submitted with a blank key is deliberately keyless: omit
+    // `apiKeyEnv` so the pi-ai adapter resolves it as unauthenticated instead
+    // of failing every request on an unset credential ref (MISSING_CREDENTIAL).
+    const profile = deepSeekRelayProfile(
+      normalized.name,
+      normalized.baseUrl,
+      normalized.apiKey === '' ? undefined : keyRef,
+      normalized.models,
+      normalized.modelContextWindows,
+    ) as unknown as import('@deepseek-ai/dsh-util-values').JsonValue
     const ops: SettingsPathOpView[] = existing === undefined
       ? [{ op: 'set', path: ['providers', route], value: profile }]
       : [

@@ -8,8 +8,6 @@ import type { LlmConfigurableProvider as ConfigurableProviderView } from '@deeps
 import type { SettingsNamespaceView } from '@deepseek-ai/dsh-settings/types'
 import type { NodeGatewayClient } from '../../gateway/node-gateway-client.js'
 import { validateBaseUrl } from '../../domain/base-url.js'
-import { modelCapacity } from '../../domain/model-capacity.js'
-import { supportsImageInput } from '../../domain/model-modalities.js'
 import {
   DEEPSEEK_OFFICIAL_BASE_URL,
   DEEPSEEK_OFFICIAL_PROVIDER,
@@ -83,8 +81,8 @@ export function normalizeInput(input: ConnectionSettingsInput): ConnectionSettin
 
 /**
  * A custom relay endpoint is addressed by the model ids it actually exposes
- * (e.g. a Volcengine Ark model id or endpoint). Empty input keeps the
- * extension's DeepSeek defaults so existing behavior is preserved.
+ * (e.g. a Volcengine Ark model id or endpoint). Empty input leaves discovery
+ * and model defaults to the official provider adapter.
  */
 export function normalizeRelayModels(models: readonly string[] | undefined): readonly string[] {
   const ids = (models ?? [])
@@ -115,50 +113,25 @@ export function normalizeModelContextWindows(
   return normalized
 }
 
-/** Reasoning effort wire map the extension writes for custom relay models. */
-export const RELAY_REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' } as const
-
-/** Map shape written by builds before the low tier existed (pre rc.7). */
-const LEGACY_RELAY_REASONING_EFFORTS = { off: null, high: 'high', max: 'max' } as const
-
-export function isLegacyRelayReasoningEfforts(efforts: object): boolean {
-  const entries = Object.entries(efforts)
-  const legacy = Object.entries(LEGACY_RELAY_REASONING_EFFORTS) as [string, unknown][]
-  return entries.length === legacy.length
-    && legacy.every(([key, value]) => (efforts as Record<string, unknown>)[key] === value)
-}
-
-/**
- * Wire model entries carrying the extension's effort map, modalities and
- * effective capacity. The published adapter resolves each model as
- * `entry.contextWindow ?? catalog.contextWindow ?? defaultContextWindow`,
- * where the default is 262144, and maps usage above the resolved value to
- * `CONTEXT_WINDOW_EXCEEDED` — so the effective window (user override, else
- * the bundled capacity table's value) must be persisted in the entry,
- * otherwise table models with larger capacities are flagged as overflow.
- * `maxTokens` is always table-sourced: it is a runtime clamp that never
- * renders back into the settings form.
- */
+/** Preserve official declarations; only explicit form overrides are written. */
 export function relayModels(
   models: readonly string[],
   contextWindows?: Readonly<Record<string, number>>,
-): { id: string; reasoningEfforts: object; input?: readonly string[]; contextWindow?: number; maxTokens?: number }[] {
-  const ids = models.length > 0 ? models : ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp']
-  return ids.map((id) => {
-    const override = contextWindows?.[id]
-    const capacity = modelCapacity(id)
-    const contextWindow = override ?? capacity?.contextWindow
-    return {
-      id,
-      reasoningEfforts: { ...RELAY_REASONING_EFFORTS },
-      // The pi-ai adapter serves an entry without `input` as text-only, so a
-      // vision route must declare its modalities or image prompts are rejected
-      // at admission even after the session switched to it.
-      ...(supportsImageInput(id) ? { input: ['text', 'image'] } : {}),
-      ...(contextWindow === undefined ? {} : { contextWindow }),
-      ...(capacity?.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
-    }
+  existing?: unknown,
+): Record<string, unknown>[] {
+  const records = Array.isArray(existing) ? existing : (isObject(existing)
+    ? Object.entries(existing).map(([id, value]) => ({ ...(isObject(value) ? value : {}), id })) : [])
+  return models.map((id) => {
+    const previous = records.find((entry) => isObject(entry) && entry.id === id)
+    const next: Record<string, unknown> = { ...(isObject(previous) ? previous : {}), id }
+    if (contextWindows?.[id] !== undefined) next.contextWindow = contextWindows[id]
+    else if (contextWindows !== undefined) delete next.contextWindow
+    return next
   })
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 /**
@@ -190,15 +163,16 @@ export function deepSeekRelayProfile(
   apiKeyEnv?: string,
   models?: readonly string[],
   contextWindows?: Readonly<Record<string, number>>,
+  api = 'openai-completions',
 ): object {
   const keyless = apiKeyEnv === undefined
   return {
     displayName,
     ...(!keyless ? { apiKeyEnv } : {}),
     ...(keyless ? { headers: { authorization: KEYLESS_AUTHORIZATION } } : {}),
-    api: 'openai-completions',
+    api,
     baseURL,
-    compat: relayCompat(),
+    ...(api === 'openai-completions' && (models ?? []).some((id) => id.startsWith('deepseek-')) ? { compat: relayCompat() } : {}),
     models: relayModels(models ?? [], contextWindows),
   }
 }
@@ -206,6 +180,7 @@ export function deepSeekRelayProfile(
 export function relayCompat(): object {
   return {
     thinkingFormat: 'deepseek',
+    requiresReasoningContentOnAssistantMessages: true,
     supportsReasoningEffort: true,
     supportsDeveloperRole: false,
   }
@@ -224,6 +199,7 @@ export function providerView(
     id: entry.provider,
     name: entry.displayName,
     baseUrl,
+    ...(stringField(profile, 'api') === undefined ? {} : { api: stringField(profile, 'api')! }),
     models: modelsField(profile),
     modelContextWindows: modelContextWindowsField(profile),
     apiKeyConfigured: credential?.configured === true,
@@ -254,6 +230,7 @@ function stringField(value: unknown, key: string): string | undefined {
 function modelsField(value: unknown): readonly string[] {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return []
   const models = (value as Record<string, unknown>)['models']
+  if (isObject(models)) return Object.keys(models)
   if (!Array.isArray(models)) return []
   return models
     .map((model) => (typeof model === 'object' && model !== null
@@ -262,26 +239,18 @@ function modelsField(value: unknown): readonly string[] {
     .filter((model): model is string => model !== undefined)
 }
 
-/**
- * Reads back the context windows the user explicitly set on each model
- * entry, so the settings form pre-fills only actual user overrides. The
- * adapter-owned table backfill also lives in the persisted entries (the
- * adapter's overflow mapping needs the effective window), so entries whose
- * value equals the bundled capacity table's value are excluded here.
- */
+/** Read explicit persisted declarations, including those retained from older builds. */
 function modelContextWindowsField(value: unknown): Readonly<Record<string, number>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
   const models = (value as Record<string, unknown>)['models']
-  if (!Array.isArray(models)) return {}
+  const entries = Array.isArray(models) ? models : isObject(models) ? Object.entries(models).map(([id, value]) => ({ ...(isObject(value) ? value : {}), id })) : []
   const result: Record<string, number> = {}
-  for (const model of models) {
+  for (const model of entries) {
     if (typeof model !== 'object' || model === null || Array.isArray(model)) continue
     const record = model as Record<string, unknown>
     const id = record['id']
     const contextWindow = record['contextWindow']
     if (typeof id !== 'string' || id === '' || typeof contextWindow !== 'number' || contextWindow <= 0) continue
-    // The table-equal value is the adapter-owned backfill, not a user edit.
-    if (modelCapacity(id)?.contextWindow === contextWindow) continue
     result[id] = contextWindow
   }
   return result

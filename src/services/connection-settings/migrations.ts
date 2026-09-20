@@ -154,12 +154,18 @@ async function migrateRelayReasoningEfforts(context: MigrationContext): Promise<
 }
 
 /**
- * Fills in contextWindow/maxTokens on relay models written by older builds.
- * The pi-ai adapter falls back to a 256K default when a model entry carries
- * no capacity, which misstates 1M-window models; writing the known capacity
- * makes the context meter accurate for Auto and manual selections alike.
- * Idempotent: entries that already carry a capacity are untouched, and ids
- * outside the capacity table keep their entries as-is.
+ * Fills in maxTokens and the adapter-owned contextWindow on relay models
+ * written by older builds. The pi-ai transport uses `model.maxTokens` as
+ * its completion-token ceiling, so writing the known value stops completions
+ * clamping at a built-in default. The published adapter resolves each model
+ * as `entry.contextWindow ?? catalog.contextWindow ?? defaultContextWindow`
+ * (default 262144) and maps usage above the resolved value to
+ * `CONTEXT_WINDOW_EXCEEDED`, so table models with larger capacities need the
+ * table value persisted rather than falling back to the default.
+ *
+ * User overrides differing from the table are kept, and ids outside the
+ * capacity table keep their entries as-is. Idempotent: entries that already
+ * carry both values stay untouched.
  */
 async function migrateRelayCapacities(context: MigrationContext): Promise<void> {
   const client = context.client
@@ -178,15 +184,17 @@ async function migrateRelayCapacities(context: MigrationContext): Promise<void> 
       if (typeof model !== 'object' || model === null || Array.isArray(model)) return model
       const record = model as Record<string, unknown>
       const id = record['id']
-      if (typeof id !== 'string' || record['contextWindow'] !== undefined) return model
+      if (typeof id !== 'string') return model
       const capacity = modelCapacity(id)
       if (capacity === undefined) return model
+      const missingMaxTokens = record['maxTokens'] === undefined && capacity.maxTokens !== undefined
+      const missingContextWindow = record['contextWindow'] === undefined && capacity.contextWindow !== undefined
+      if (!missingMaxTokens && !missingContextWindow) return model
+      const next = { ...record }
+      if (missingMaxTokens) next['maxTokens'] = capacity.maxTokens
+      if (missingContextWindow) next['contextWindow'] = capacity.contextWindow
       changed = true
-      return {
-        ...record,
-        contextWindow: capacity.contextWindow,
-        ...(capacity.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
-      }
+      return next
     })
     if (changed) ops.push({ op: 'set', path: ['providers', route, 'models'], value: upgraded })
   }

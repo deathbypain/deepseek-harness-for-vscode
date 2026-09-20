@@ -51,6 +51,7 @@ export function composerConfigurationInput(
       // shared vision table (plus the vision-name fallback) used by admission
       // and relay profile writing.
       ...(supportsImageInput(model.id) ? { imageInput: true } : {}),
+      ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
       reasoning: model.reasoning.length === 0
         ? fallbackReasoning
         : model.reasoning.map((effort) => {

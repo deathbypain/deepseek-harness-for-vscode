@@ -132,6 +132,23 @@ describe('composer configuration adapter', () => {
     ])
   })
 
+  it('carries contextWindow from ModelView into ModelConfigurationOption', () => {
+    const result = composerConfigurationInput(payload({
+      models: [
+        {
+          provider: 'llama-swap',
+          providerName: 'llama-swap',
+          id: 'gemma-4-12b',
+          name: 'Gemma 4 12B',
+          reasoning: [],
+          contextWindow: 32_768,
+        },
+      ],
+    }))
+
+    expect(result?.models[0]?.contextWindow).toBe(32_768)
+  })
+
   it('locks configuration for sub-agents and while the current turn is running', () => {
     const subagent = composerConfigurationInput(payload({
       parentSessionId: 'parent-1',

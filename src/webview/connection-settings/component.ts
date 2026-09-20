@@ -28,6 +28,7 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
   const providerSelect = required<HTMLSelectElement>(document, 'settings-provider')
   const name = required<HTMLInputElement>(document, 'settings-name')
   const nameField = required<HTMLElement>(document, 'settings-name-field')
+  const protocol = document.getElementById('settings-api') as HTMLSelectElement | null
   const baseUrl = required<HTMLInputElement>(document, 'settings-base-url')
   const baseUrlError = required<HTMLElement>(document, 'settings-base-url-error')
   const apiKey = required<HTMLInputElement>(document, 'settings-api-key')
@@ -57,6 +58,7 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
       provider: providerSelect.value,
       name: name.value,
       baseUrl: baseUrl.value,
+      api: protocol?.value ?? selected()?.api,
       apiKey: apiKey.value,
       models: parsed.ids,
       modelContextWindows: parsed.contextWindows,
@@ -92,7 +94,16 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
     remove.classList.remove('danger')
     name.value = provider?.name ?? ''
     name.disabled = !state.writable || (!creating && provider === undefined)
-    baseUrl.value = provider?.baseUrl ?? (official ? 'https://api.deepseek.com' : '')
+    if (protocol) {
+      document.getElementById('settings-api-field')?.classList.toggle('hidden', official)
+      const api = provider?.api ?? 'openai-completions'
+      if (!Array.from(protocol.options).some((option) => option.value === api)) {
+        const option = document.createElement('option'); option.value = api; option.textContent = api; protocol.append(option)
+      }
+      protocol.value = api
+      protocol.disabled = !state.writable || official
+    }
+    baseUrl.value = provider?.baseUrl ?? (official ? 'https://api.deepseek.com/anthropic' : '')
     // The built-in route is intentionally tied to the native DeepSeek adapter.
     // Every relay endpoint must be added as a custom pi-ai provider.
     baseUrl.disabled = !state.writable || official
@@ -105,7 +116,7 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
     models.disabled = !state.writable || official
     models.value = (provider?.models.length ?? 0) > 0
       ? formatModelsField(provider!.models, provider!.modelContextWindows)
-      : 'deepseek-v4-flash, deepseek-v4-pro'
+      : ''
     apply.disabled = !state.writable
     test.classList.toggle('hidden', official)
     baseUrl.classList.remove('invalid')
@@ -113,7 +124,7 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
     resetTest()
   }
 
-  let renderProviders = (keepSelected = false): void => {
+  const renderProviders = (keepSelected = false): void => {
     const currentSelected = providerSelect.value
     const fragment = document.createDocumentFragment()
     for (const provider of state.providers) {
@@ -144,6 +155,7 @@ export function createConnectionSettingsComponent(options: ConnectionSettingsCom
     resetTest()
   })
   apiKey.addEventListener('input', resetTest)
+  protocol?.addEventListener('change', resetTest)
   experimentalAutoEffort.addEventListener('change', () => {
     post('setExperimentalAutoEffort', { value: experimentalAutoEffort.checked })
   })

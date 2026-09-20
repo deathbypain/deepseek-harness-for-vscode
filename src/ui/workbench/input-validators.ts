@@ -47,7 +47,7 @@ export function settingsInput(value: Record<string, unknown>): ConnectionSetting
   const apiKey = typeof value.apiKey === 'string' ? value.apiKey : ''
   const models = modelsInput(value.models)
   const modelContextWindows = modelContextWindowsInput(value.modelContextWindows)
-  return { provider, name, baseUrl, apiKey, models, modelContextWindows }
+  return { provider, name, baseUrl, apiKey, models, modelContextWindows, ...(typeof value.api === 'string' ? { api: value.api } : {}) }
 }
 
 /** Accepts an array of ids or a single comma/space-separated string. */

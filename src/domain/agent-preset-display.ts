@@ -12,11 +12,8 @@ export interface PresetDisplayText {
   readonly description?: string
 }
 
-// The bundled harness ships the "Code Mode SDK" preset under directory/id
-// `ptc`, but this extension's own catalog (and the `deepseekHarness.agentPreset`
-// setting) has long called it `code`. Map the harness id to this extension's
-// catalog id so the lookup below still finds the right English/Chinese copy.
-const BUILT_IN_PRESET_ALIASES: Record<string, string> = { ptc: 'code' }
+// Old extension settings used `code`; the official preset id is now `ptc`.
+const BUILT_IN_PRESET_ALIASES: Record<string, string> = { code: 'ptc' }
 
 /**
  * Resolves display copy for one roster preset row. The bundled harness only

@@ -7,7 +7,6 @@ import type { ConfigurationService, HarnessConfiguration } from '../config/confi
 import type { BundledRuntimeResolver } from './bundled-runtime.js'
 import { harnessHomePath } from './harness-home.js'
 import { isProjectionCacheFailure, recoverStaleProjectionCache } from './projection-cache-recovery.js'
-import { pruneShadowedRuntimePackages } from './profile-scope-prune.js'
 import { isModuleFallbackConflict } from './module-fallback-recovery.js'
 import { prepareModuleFallback } from './prepare-module-fallback.js'
 import { renderOverlay } from './runtime-overlay.js'
@@ -146,15 +145,8 @@ export class HarnessHostRuntime implements vscode.Disposable {
     signal.throwIfAborted()
     await writeFile(overlay, renderOverlay(configuration, gatewayPlugin, this.sharedHistoryValue ? sharedHome : home, historyCompression), 'utf8')
     const installAnchor = this.context.asAbsolutePath(path.join('node_modules', '@deepseek-ai', 'dsh', 'package.json'))
-    await prepareModuleFallback(home, installAnchor, this.output)
-    // Profile-level @deepseek-ai copies shadow the bundled runtime during
-    // plugin resolution; drop stale ones so an older build's leftovers cannot
-    // fail the boot with a stale-schema validation error.
-    await pruneShadowedRuntimePackages(
-      path.join(home, 'profiles', 'web', 'node_modules', '@deepseek-ai'),
-      this.context.asAbsolutePath(path.join('node_modules', '@deepseek-ai')),
-      (line) => this.output.appendLine(line),
-    )
+    // DSH owns runtime profile resolution. Legacy repair runs only after a
+    // recognized old-link failure, preserving unrelated installed packages.
 
     const args = [...launch.args, 'web', '--patch', overlay, '--host', '127.0.0.1', '--port', '0']
     const env: NodeJS.ProcessEnv = {

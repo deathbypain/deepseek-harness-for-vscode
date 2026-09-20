@@ -46,6 +46,7 @@ describe('composer configuration adapter', () => {
       providerName: 'DeepSeek',
       id: 'deepseek-v4-pro',
       label: 'DeepSeek V4 Pro',
+      imageInput: false,
       description: 'Complex work',
       reasoning: [{ id: 'max', label: 'Maximum', description: 'Deep reasoning' }],
     }])
@@ -60,6 +61,7 @@ describe('composer configuration adapter', () => {
       providerName: 'DeepSeek Official',
       id: 'deepseek-v4-flash',
       label: 'DeepSeek V4 Flash',
+      imageInput: false,
       description: 'Fast',
       reasoning: [
         { id: 'off', label: 'Off' },
@@ -73,7 +75,7 @@ describe('composer configuration adapter', () => {
   it('flags image-capable models so the picker can badge them', () => {
     const live = composerConfigurationInput(payload({
       models: [
-        { provider: 'deepseek-official', providerName: 'DeepSeek', id: 'deepseek-v4-flash-vision-exp', name: 'Vision', reasoning: [] },
+        { provider: 'deepseek-official', providerName: 'DeepSeek', id: 'deepseek-v4-flash-vision-exp', name: 'Vision', inputModalities: ['text', 'image'], reasoning: [] },
         { provider: 'deepseek-official', providerName: 'DeepSeek', id: 'deepseek-v4-flash', name: 'Flash', reasoning: [] },
       ],
     }))
@@ -85,8 +87,8 @@ describe('composer configuration adapter', () => {
         { id: 'deepseek-v4-flash-vision-exp', label: 'DeepSeek V4 Flash Vision (Exp)' },
       ],
     }))
-    expect(fallback?.models.find((model) => model.id === 'deepseek-v4-flash-vision-exp')?.imageInput).toBe(true)
-    expect(fallback?.models.find((model) => model.id === 'deepseek-v4-flash')?.imageInput).toBeUndefined()
+    expect(fallback?.models.find((model) => model.id === 'deepseek-v4-flash-vision-exp')?.imageInput).toBe(false)
+    expect(fallback?.models.find((model) => model.id === 'deepseek-v4-flash')?.imageInput).toBe(false)
   })
 
   it('uses the live Harness catalog so models from every provider appear automatically', () => {

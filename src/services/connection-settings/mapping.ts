@@ -130,12 +130,14 @@ export function isLegacyRelayReasoningEfforts(efforts: object): boolean {
 
 /**
  * Wire model entries carrying the extension's effort map, modalities and
- * user-set capacity. Only a user-specified `contextWindows[id]` is persisted
- * as `contextWindow`: persisting the bundled capacity table's value would pin
- * it as if the user had typed it, and a later table correction could never
- * reach that provider. The effective window falls back to the table at read
- * time instead. `maxTokens` is always table-sourced: it is a runtime clamp
- * that never renders back into the settings form.
+ * effective capacity. The published adapter resolves each model as
+ * `entry.contextWindow ?? catalog.contextWindow ?? defaultContextWindow`,
+ * where the default is 262144, and maps usage above the resolved value to
+ * `CONTEXT_WINDOW_EXCEEDED` — so the effective window (user override, else
+ * the bundled capacity table's value) must be persisted in the entry,
+ * otherwise table models with larger capacities are flagged as overflow.
+ * `maxTokens` is always table-sourced: it is a runtime clamp that never
+ * renders back into the settings form.
  */
 export function relayModels(
   models: readonly string[],
@@ -145,6 +147,7 @@ export function relayModels(
   return ids.map((id) => {
     const override = contextWindows?.[id]
     const capacity = modelCapacity(id)
+    const contextWindow = override ?? capacity?.contextWindow
     return {
       id,
       reasoningEfforts: { ...RELAY_REASONING_EFFORTS },
@@ -152,7 +155,7 @@ export function relayModels(
       // vision route must declare its modalities or image prompts are rejected
       // at admission even after the session switched to it.
       ...(supportsImageInput(id) ? { input: ['text', 'image'] } : {}),
-      ...(override === undefined ? {} : { contextWindow: override }),
+      ...(contextWindow === undefined ? {} : { contextWindow }),
       ...(capacity?.maxTokens === undefined ? {} : { maxTokens: capacity.maxTokens }),
     }
   })
@@ -262,8 +265,9 @@ function modelsField(value: unknown): readonly string[] {
 /**
  * Reads back the context windows the user explicitly set on each model
  * entry, so the settings form pre-fills only actual user overrides. The
- * bundled capacity table's values never appear here; when absent, the
- * effective window falls back to the table at read time.
+ * adapter-owned table backfill also lives in the persisted entries (the
+ * adapter's overflow mapping needs the effective window), so entries whose
+ * value equals the bundled capacity table's value are excluded here.
  */
 function modelContextWindowsField(value: unknown): Readonly<Record<string, number>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return {}
@@ -275,9 +279,10 @@ function modelContextWindowsField(value: unknown): Readonly<Record<string, numbe
     const record = model as Record<string, unknown>
     const id = record['id']
     const contextWindow = record['contextWindow']
-    if (typeof id === 'string' && id !== '' && typeof contextWindow === 'number' && contextWindow > 0) {
-      result[id] = contextWindow
-    }
+    if (typeof id !== 'string' || id === '' || typeof contextWindow !== 'number' || contextWindow <= 0) continue
+    // The table-equal value is the adapter-owned backfill, not a user edit.
+    if (modelCapacity(id)?.contextWindow === contextWindow) continue
+    result[id] = contextWindow
   }
   return result
 }

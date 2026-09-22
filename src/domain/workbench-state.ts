@@ -3,6 +3,7 @@ import type { AgentPresetRow as AgentPresetEntry } from '@deepseek-ai/dsh-agent-
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-commands/types'
 import type {} from '@deepseek-ai/dsh-tool-todo'
+import type {} from '@deepseek-ai/dsh-tool-present/types'
 import type { ContextPressureView } from './context-pressure.js'
 import type { EffortIntent } from './session-effort.js'
 import type { SessionChangesView } from './session-changes.js'
@@ -112,6 +113,7 @@ export interface ModelView {
   readonly reasoning: readonly ModelReasoningEffort[]
   /** The model's effective context window (tokens), when known. */
   readonly contextWindow?: number
+  readonly inputModalities?: readonly string[]
 }
 
 export interface ActiveSessionView {
@@ -568,6 +570,17 @@ export function projectConversation(entries: readonly HistoryEntry[], labels = E
         }
         break
       }
+      case 'deliverables/presented': {
+        addMessage({
+          id: `event-${event.seq}`, seq: event.seq, time: event.time,
+          kind: 'message', role: 'assistant',
+          blocks: event.data.files.map((file) => ({
+            kind: 'text',
+            text: `[${file.path.replace(/[[\]\\]/g, '\\$&')}](<${encodeURI(file.path).replace(/[<>]/g, (c) => encodeURIComponent(c))}>)${file.description ? `\n${file.description}` : ''}`,
+          })),
+        }, event.data.turn)
+        break
+      }
       case 'tool/call': {
         addMessage({
           id: `tool-${String(event.data.callId)}`,
@@ -828,6 +841,10 @@ function projectBlocks(blocks: readonly unknown[], labels: WorkbenchLabels): Cha
     if (!isRecord(value) || typeof value.type !== 'string') continue
     if ((value.type === 'text' || value.type === 'reasoning') && typeof value.text === 'string') {
       result.push({ kind: value.type, text: value.text })
+    } else if (value.type === 'file') {
+      const ref = isRecord(value.ref) ? value.ref : value
+      const name = typeof ref.name === 'string' ? ref.name : typeof ref.path === 'string' ? ref.path : 'File'
+      result.push({ kind: 'text', text: `[${name}]` })
     } else if (value.type === 'image') {
       result.push({ kind: 'image', text: labels.imageAttachment })
     }
